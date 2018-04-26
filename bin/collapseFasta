@@ -1,0 +1,275 @@
+#!/usr/bin/perl
+# Copyright (c)  2018-
+# Program:			collapseFasta
+# Author:			Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Program Date:		2018.04.01
+# Modifier:			Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Last Modified:	2018.04.01
+# Description:	cluster the same sequences in fasta file into one with the number of sequences.
+#**************************
+# Version: 1.0
+#**************************
+#refer to 
+
+# e-mail:highlei@gmail.com
+
+my $version="1.0";
+print STDERR ("\n==========================| $0  start |=================================\n");
+
+my $start = time();
+my $Time_Start = sub_format_datetime(localtime(time())); #运行开始时间
+print STDERR "Now = $Time_Start\n\n";
+
+
+use Getopt::Std;
+getopts("hi:j:b:n:o:s:w:t:d:c:f:0:");
+my $flag0	= (defined $opt_0) ? $opt_0 : 0;
+my $gnmFiles		= $opt_i;
+#my $stringFile		= $opt_j;			#the result of similarity4phy1.4.pl
+#my $flankLen	= (defined $opt_l) ? $opt_l : "150,150";
+my $name	= (defined $opt_n) ? $opt_n : "";
+my $copyNum		= (defined $opt_c) ? $opt_c : "1,"; #,10 or 5,10
+#my $slideLen	= (defined $opt_s) ? $opt_s : 50;
+#my $winLen		= (defined $opt_w) ? $opt_w : 150;
+#my $identity	= (defined $opt_t) ? $opt_t : 100;
+my $format		= (defined $opt_f) ? $opt_f : 0;	## 1: name copy_num;	2: like the output
+my $outFile		= (defined $opt_o) ? $opt_o : "";
+
+if ($opt_h || $gnmFiles eq ""){# || $aafile eq "" || $ntfile eq "") { #|| $batchfile eq "" || $output eq "") {
+	usage();
+}
+sub reverse_numerically{$b<=>$a};
+#sub sub_slideWindow;
+#sub sub_numOfDiff;
+
+use FileHandle;
+use strict;
+
+
+
+my ($i,$j,$k,$num,$len,$ntlen,$k1,$k2,$k3,$m,$file,$line,$in,$match,$omatch,$a,$b,$end);
+my (@buf,@bufo,@genome,@gnmName);
+#my (%aa,%nt,%genome,%mrna);
+my $key="";
+my $flag=0;
+my ($opNum,$fore,$back,$gnmNum);
+my %seq;
+my %seqorder;
+
+#===========================================================================================================
+#====================                  main
+#===========================================================================================================
+#my $flag0	= 1;
+my $yesorno	= "y";
+while ($flag0) {
+	print STDERR ("\n------------------------------------------------------------\n");
+	print STDERR ("\n $0 version $version\n\n");
+	print STDERR ("Settings for this run:");
+	printf STDERR ("\n i  %40s : %-25s","input fasta file name",$gnmFiles);#%45s
+	printf STDERR ("\n n  %40s : %-25s","name",$name);
+	printf STDERR ("\n c  %40s : %-25s","the lower,upper limit of copy number",$copyNum);
+	printf STDERR ("\n f  %40s : %-25s","input file seq name format",$format);
+#	if($startCodon==1) {printf STDERR ("\n s  %40s : %-25s","include start codon in output file","yes");} else {printf STDERR ("\n s  %40s : %-25s","delete start codon in output file","yes");}
+	printf STDERR ("\n x  %40s !","exit the program");
+	print STDERR ("\n\n");
+	print STDERR "y to accept these or type the letter for one to change!\n";
+	$yesorno = <STDIN>;	$yesorno =~s/[\s|\t|\r|\n]+$//g;	$yesorno = lc($yesorno);
+	if ($yesorno eq "y") {print STDERR ("\n\n"); $flag0 = 0;}
+	elsif($yesorno eq "i") {print STDERR "please input fasta file name:\n"; $gnmFiles	= <STDIN>;	$gnmFiles	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "n") {print STDERR "please input name\n"; $name	= <STDIN>;$name	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "c") {print STDERR "please input lower,upper limit of copy number:\n";$copyNum	= <STDIN>;$copyNum	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "f") {print STDERR "please input seq name format:0:don't care;1:name copy_num;2:like output\n";$format	= <STDIN>;$format	=~s/[\s|\t|\r|\n]+$//g;}
+#	elsif($yesorno eq "t") {$terminal	= ($terminal+1)%2;}
+	elsif($yesorno eq "x") {sub_end_program();;exit(0);}
+}
+
+
+#print STDERR "\npro=$pro\tparam=$param\tbachfile=$batchfile\top=$output\tdir=$dir\n";
+
+if ($copyNum=~/^(\d+),(\d+)/) {
+	$buf[0] = $1;$buf[1] = $2;
+} elsif ($copyNum=~/,(\d+)/) {
+	$buf[0] = 0;$buf[1] = $1;
+} elsif ($copyNum=~/(\d+)/) {
+	$buf[0] = $1;$buf[1] = -1;
+} else {
+	print STDERR "please input the -c like this format lower,upper or lower, or ,upper!\n";
+	sub_end_program();
+}
+
+############################################ read genome files ######################################################
+$i	= -1;	$j	= "";	$m	= 0;
+$file = new FileHandle ("$gnmFiles") || die("Cannot open file:$gnmFiles\n");
+if ($format == 0) {
+	while (<$file>) {
+		$_=~s/^[\s|\t]+//g;
+		$_=~s/[\s|\t|\r|\n]+$//g;
+		if ($_ =~/^>(\S+)/) {
+			if (exists($seq{$j})) {
+				$seq{$j}++;
+			} else {
+				$seq{$j}	= 1;
+			}
+				$i++;
+				$j	= "";
+	#			$gnmName[$i]	= $1;	#$k1++;
+		#	}
+		} else {
+			$j .= $_;
+		}
+	}
+	if (exists($seq{$j})) {
+		$seq{$j}++;
+	} else {
+		$seq{$j}	= 1;
+	}
+} elsif ($format == 1) {
+	while (<$file>) {
+		$_=~s/^[\s|\t]+//g;
+		$_=~s/[\s|\t|\r|\n]+$//g;
+		if ($_ =~/^>(\S+)\s+(\d+)/) {
+			if (exists($seq{$j})) {
+				$seq{$j}	+=$m;
+			} else {
+				$seq{$j}	= $m;
+			}
+			$m	= $2;
+			$i++;	$j	= "";
+		} else {
+			$j .= $_;
+		}
+	}
+	if (exists($seq{$j})) {
+		$seq{$j}	+=$m;
+	} else {
+		$seq{$j}	= $m;
+	}
+} elsif ($format == 2) {
+	while (<$file>) {
+		$_=~s/^[\s|\t]+//g;
+		$_=~s/[\s|\t|\r|\n]+$//g;
+		if ($_ =~/^>([^_]+)_(\d+)_(\d+)/) {
+			if (exists($seq{$j})) {
+				$seq{$j}	+=$m;
+			} else {
+				$seq{$j}	= $m;
+			}
+			$m	= $3;
+			$i++;	$j	= "";
+		} else {
+			$j .= $_;
+		}
+	}
+	if (exists($seq{$j})) {
+		$seq{$j}	+=$m;
+	} else {
+		$seq{$j}	= $m;
+	}
+}
+close $file || die("Wrong!");
+print STDERR "There are ",$i+1," sequence in file $gnmFiles\n";
+############################################ output ######################################################
+$m	= 0;	$k	= 0;
+foreach $key (sort keys %seq) {
+	if ($key eq "") {
+		next;
+	}
+	$seqorder{$seq{$key}}{$key}	= 1;
+#	print ">$name\_$m\_",$seq{$key},"\n",$key,"\n";
+#	$m++;	$k	+= $seq{$key};
+}
+undef(%seq);
+if ($outFile ne "") {
+	open(STDOUT,">$outFile") || die("Can not open file: $outFile!!\n");
+}
+
+
+
+if ($name eq "") {
+	foreach $key (sort reverse_numerically keys %seqorder) {
+		if ($key < $buf[0] || ($buf[1] != -1 && $key > $buf[1])) {
+			next;
+		}
+		foreach $i (sort keys %{$seqorder{$key}}) {
+			print STDOUT ">$i\_$m\_",$key,"x\n",$i,"\n";
+			$m++;	$k	+= $key;
+		}
+	}
+} else {
+	foreach $key (sort reverse_numerically keys %seqorder) {
+	#	if ($key < $copyNum) {
+		if ($key < $buf[0] || ($buf[1] != -1 && $key > $buf[1])) {
+			next;
+		}
+		foreach $i (sort keys %{$seqorder{$key}}) {
+			print STDOUT ">$name\_$m\_",$key,"x\n",$i,"\n";
+			$m++;	$k	+= $key;
+		}
+	}
+}
+print STDERR "There are $m,$k unique,sequence in output\n";
+if ($outFile ne "") {
+	close STDOUT || die;
+}
+
+
+############################################ output ##########################################################
+
+sub_end_program();
+
+
+#############################################################################################################
+####################################                                         ################################
+####################################              "main end"                 ################################
+####################################                                         ################################
+#############################################################################################################
+
+
+sub usage
+{
+	print "Program :\t$0\n";
+	print "Version :\t$version\n";
+	print "Author  :\tLei Gao, szu\n";
+	print "Contact :\tLei Gao <highlei\@hotmail.com>\n";
+	print "\nUsage:	$0 [options]\n";
+	print "\t-i	<str>	input fasta file.";
+	print " eg: infile.fasta\n";
+	print "\t-n	<str>	input suffix name for output sequence.";
+	print " [$name]\n";
+	print "\t-c	<str>	please input lower,upper limit of copy number.";
+	print " [$copyNum]\n";
+	print "\t-f	<int>	inputfile format:0:don't care;1:name copy_num;2:like output.";
+	print " [$format]\n";
+	print "\n\t-h	display this help\n";
+	print "\nExample:\n";
+	print "$0 -i infile.fasta -c 1,10\n";
+	print "$0 -i infile.fasta -n lib1 -c 1,10\n";
+	print ("==========================| $0  end   |=================================\n\n");
+
+	exit(0);
+}
+############################################################################################################
+######################                  sub_format_datetime
+############################################################################################################
+
+sub sub_format_datetime #时间子程序
+{
+    my ($sec, $min, $hour, $day, $mon, $year, $wday, $yday, $isdst) = @_;
+    sprintf("%4d-%02d-%02d %02d:%02d:%02d", $year+1900, $mon+1, $day, $hour, $min, $sec);
+}
+
+############################################################################################################
+######################                  sub_end_program
+############################################################################################################
+sub sub_end_program
+{
+	print STDERR ("\n............................................................\n");
+	my $Time_End = sub_format_datetime(localtime(time()));
+	print STDERR "Running from [$Time_Start] to [$Time_End]\n";
+	$end = time();
+	printf STDERR ("Total execute time : %.2f s\n",$end-$start);
+	print STDERR ("==========================| $0  end   |=================================\n\n");
+	exit(0);
+
+}
+

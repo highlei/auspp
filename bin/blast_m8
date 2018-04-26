@@ -1,0 +1,336 @@
+#!/usr/bin/perl
+# Copyright (c)  2018-
+# Program:			blast_m8
+# Author:			Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Program Date:		2018.03.28
+# Modifier:			Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Last Modified:	2018.03.28
+# Description:	analysis blast result with parameter m=8.
+#**************************
+# Version: 1.0
+#**************************
+# e-mail:highlei@gmail.com
+
+my $version="1.0";
+print STDERR ("\n==========================| $0 start |==================================\n");
+
+my $start = time();
+my $Time_Start = sub_format_datetime(localtime(time())); #运行开始时间
+print STDERR "Now = $Time_Start\n\n";
+
+
+use Getopt::Std;
+getopts("hi:l:d:b:c:o:r:t:L:m:s:N:R:0:");
+my $flag0		= (defined $opt_0) ? $opt_0 : 0;
+my $infile		= $opt_i;
+my $lenfile		= (defined $opt_l) ? $opt_l : "";
+my $smallRNA	= (defined $opt_d) ? $opt_d : "";
+my $output		= (defined $opt_o) ? $opt_o : $start;
+my $lenRatio	= (defined $opt_r) ? $opt_r : 0.7;	# -1 means donot check the [$len{$1}-$4+$5+$6 > $mismatch+$gap_size]
+my $identity	= (defined $opt_t) ? $opt_t : 95;
+my $min_len		= (defined $opt_L) ? $opt_L : 70;
+my $mismatch	= (defined $opt_m) ? $opt_m : 2;
+my $gap_size	= (defined $opt_s) ? $opt_s : 0;
+my $match_mode	= (defined $opt_N) ? $opt_N : 4;	# 4: find the best hits 0: all hits
+my $Rone_All	= (defined $opt_R) ? $opt_R : 2;	# 0=1st one; 1=random one; 2=all
+
+if ($opt_h || $infile eq ""){
+	usage();
+}
+
+sub numerically {$a <=> $b}
+
+use FileHandle;
+use strict;
+
+srand($start);
+
+my ($i,$j,$k,$m,$n,$k1,$k2,$k3,$file,$line,$in,$match,$omatch,$a,$b,$end);
+my (@bufi,@bufo);
+my (%query,%len,%gnm);
+my $key="";
+my ($i3,$i4,$i5,$i6,$i11,$i12);
+
+#===========================================================================================================
+#====================                  main
+#===========================================================================================================
+#my $flag0	= 1;
+my $yesorno	= "y";
+while ($flag0) {
+	print STDERR ("\n------------------------------------------------------------\n");
+	print STDERR ("\n $0 version $version\n\n");
+	print STDERR ("Settings for this run:");
+	printf STDERR ("\n i  %35s : %-25s","input blast result (m=8) file",$infile);#%45s
+	printf STDERR ("\n l  %35s : %-25s","input length file",$lenfile);
+	printf STDERR ("\n d  %35s : %-25s","input query data",$smallRNA);
+	printf STDERR ("\n o  %35s : %-25s","output files name",$output);
+	printf STDERR ("\n r  %35s : %-25s","len threshold=align_len/query_len",$lenRatio);
+	printf STDERR ("\n t  %35s : %-25s","identity threshold\%",$identity);
+	printf STDERR ("\n L  %35s : %-25s","the minimum hit length",$min_len);
+	printf STDERR ("\n m  %35s : %-25s","the allowable mismatch number",$mismatch);
+	printf STDERR ("\n s  %35s : %-25s","the allowable gap size",$gap_size);
+	printf STDERR ("\n N  %35s : %-25s","find the best hits or not (4: best)",$match_mode);
+	printf STDERR ("\n R  %35s : %-25s","how to report repeat hits?",$Rone_All);
+	printf STDERR ("\n x  %35s","exit the program!");
+	print STDERR ("\n\n");
+	print STDERR "y to accept these or type the letter for one to change!\n";
+	$yesorno = <STDIN>;	$yesorno =~s/[\s|\t|\r|\n]+$//g;	$yesorno = lc($yesorno);
+	if ($yesorno eq "y") {print STDERR ("\n------------------------------------------------------------\n\n\n"); $flag0 = 0;}
+	elsif($yesorno eq "i") {print STDERR "please input the blast (m=8) result file:\n"; $infile	= <STDIN>;	$infile	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "l") {print STDERR "please input the length file:\n"; $lenfile	= <STDIN>;$lenfile	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "d") {print STDERR "please input query data:\n"; $smallRNA	= <STDIN>;$smallRNA	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "o") {print STDERR "please input output files name:\n";$output	= <STDIN>;$output	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "r") {print STDERR "please input length threshold=align_len/query_len:\n";$lenRatio	= <STDIN>;$lenRatio	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "t") {print STDERR "please input identity threshold\%:\n";$identity	= <STDIN>;$identity	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "L") {print STDERR "please input the minimum hit length:\n";$min_len	= <STDIN>;$min_len	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "m") {print STDERR "please input the allowable mismatch number:\n";$mismatch	= <STDIN>;$mismatch	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "s") {print STDERR "please input the allowable gap size:\n";$gap_size	= <STDIN>;$gap_size	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "N") {print STDERR "please input find the best hits or not (4: best):\n";$match_mode	= <STDIN>;$match_mode	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "R") {print STDERR "how to report repeat hits, 0=1st one; 1=random one; 2=all:\n";$Rone_All	= <STDIN>;$Rone_All	=~s/[\s|\t|\r|\n]+$//g;}
+	elsif($yesorno eq "x") {print STDERR ("============================================================\n");exit(0);}
+}
+
+#$infile	=~s/&+/ /g;
+#$batchfile	=~s/\"$//g;	$batchfile	=~s/^\"//g;
+#$batchparam	=~s/\"$//g;	$batchparam	=~s/^\"//g;
+#$output	=~s/\"$//g;		$output	=~s/^\"//g;
+#$opparam	=~s/\"$//g;	$opparam	=~s/^\"//g;
+#$param	=~s/\"$//g;		$param	=~s/^\"//g;
+#
+#print STDERR "\npro=$pro\tparam=$param\tbachfile=$batchfile\top=$output\tdir=$dir\n";
+$m	= 0;
+############################################ read smallRNA files ######################################################
+if ($smallRNA ne "") {
+	$i	= -1;
+	$file = new FileHandle ("$smallRNA") || die("Cannot open the small RNA $smallRNA!\n");
+	while (<$file>) {
+		$_=~s/^[\s|\t]+//g;
+		$_=~s/[\s|\t|\r|\n]+$//g;
+		if ($_ =~/^>(\S+)/) {
+		#	if (exists($genome{$1})) {
+		#		die("There are something wrong in $gnmFiles:$1\n");
+		#	} else {
+				$i	= $1;
+				$gnm{$i}	= "";
+				$m++;
+		#	}
+		} else {
+			$gnm{$i} .= $_;
+		}
+	}
+	close $file || die("Wrong!");
+	print STDERR "There are $m sequence in query file $smallRNA!\n";
+
+	foreach $key (keys %gnm) {
+		$len{$key}	= length($gnm{$key});
+	}
+	%gnm=();
+}
+
+############################################ read file ######################################################
+$k = 0;
+if ($lenfile ne "") {
+	$file = new FileHandle ("$lenfile") || die("Cannot open file: $lenfile");
+
+	while(<$file>)
+	{
+		if ($_ =~/^(\S+)\s+(\d+)/) {
+			if (exists($len{$1})) {
+				if ($len{$1} != $2) {
+					print STDERR "there are something wrong in $lenfile:$1\n";
+				}
+	#			die("there are something wrong in $lenfile:$1\n");
+			} else {
+				$len{$1}	= $2;	$k++;
+			}
+		} else {
+
+		}
+	}
+
+	close $file || die;
+	print	STDERR "There are $k length in file $lenfile!\n";
+} elsif ($smallRNA ne "") {
+	$lenfile	= $m;
+}
+
+$k1	= 0;	$k2 = 0;
+$file = new FileHandle ("$infile") || die("Cannot open file: $infile");
+
+while(<$file>)
+{
+	if ($_ =~/^(\S+)\s+(\S+)\s+([\d|\.]+)\s+(\d+)\s+(\d+)\s+(\d+)/) {
+		$i	= $_;	$k2++;
+		#	$i	=~s/[\s|\r|\n|\t]+$//g;
+#		if (exists($query{$1}) && $query{$1}->[0]==1) {
+
+#		} else {
+			if ($lenfile ne "" || $smallRNA ne "") {
+				if (!exists($len{$1})) {
+					print STDERR $1,", ";
+					next;
+				}
+				if ($len{$1} == 0) {
+					print STDERR $1,",",$len{$1},", ";
+					next;
+				}
+				if ($lenRatio != -1 && $len{$1}-$4+$5+$6 > $mismatch+$gap_size) {
+					next;
+				}
+				if ($4/$len{$1} < $lenRatio) {
+					if (!exists($query{$1})) {
+		#				$query{$1}->[0]	= 0;
+						$k1++;
+					}
+					next;
+				}
+			}
+			if ($5 > $mismatch || $6 > $gap_size) {
+				next;
+			}
+			if ($4 < $min_len) {
+				next;
+			}
+			if ($3 < $identity) {
+				if (!exists($query{$1})) {
+		#			$query{$1}->[0]	= 0;
+					$k1++
+				}
+				next;
+			}
+			if (!exists($query{$1})) {
+				$k1++
+			}
+#			$query{$1}{"num"} = 1;
+			if (exists($query{$1}) ) {
+				$a	= $1;
+				if ($match_mode == 4) {
+					$query{$a}{1}=~/^(\S+)\s+(\S+)\s+([\d|\.]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)/;
+					$i3=$3;$i4=$4;$i5=$5;$i6=$6;$i11=$11;$i12=$12;
+					$i=~/^(\S+)\s+(\S+)\s+([\d|\.]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)/;
+					if ($3==$i3 && $4==$i4 && $5==$i5 && $6==$i6 && $11==$i11 && $12==$i12) {
+						$query{$a}{"num"}++;
+						$query{$a}{$query{$1}{"num"}}	= $i;
+					}
+				} else {
+					$query{$a}{"num"}++;
+					$query{$a}{$query{$1}{"num"}}	= $i;
+				}
+			} else {
+				$query{$1}{"num"}	= 1;
+				$query{$1}{$query{$1}{"num"}}	= $i;
+			}
+#			$query{$1}->[1]	= $i;
+#		}
+	} else {
+
+	}
+}
+
+close $file || die;
+
+print	STDERR "There are $k1,$k2 unique,all elements in file $infile!\n";
+
+############################################ output ######################################################
+$i	= $output;# . "exist.lis";
+open(EXIST, ">$i") || die("Can not open file: $i\n");
+$j	= $output . "non_exist.lis";
+#open(NONEXIST, ">$j") || die("Can not open file: $j\n");
+
+$k1	= 0;	$k2	= 0;
+foreach $key (sort keys(%query)) {
+	if ($Rone_All == 0) {
+		print EXIST $query{$key}{1};#,"\n";
+		$k1++;
+	} elsif ($Rone_All == 1) {
+		$k	= int rand($query{$key}{"num"});
+		print EXIST $query{$key}{$k+1};#,"\n";
+		$k1++;
+	} elsif ($Rone_All == 2) {
+		foreach $k (sort numerically keys %{$query{$key}}) {
+			if ($k	eq "num") {
+				next;
+			}
+			print EXIST $query{$key}{$k};#,"\n";
+			$k1++;
+		}
+	}
+}
+close (EXIST);
+
+#close (NONEXIST);
+
+print STDERR "output: $k1\n";
+
+
+sub_end_program();
+
+
+#############################################################################################################
+####################################                                         ################################
+####################################              "main end"                 ################################
+####################################                                         ################################
+#############################################################################################################
+
+
+sub usage
+{
+	print "Contact : Gao lei <highlei\@hotmail.com>";
+	print "\nProgram : $0\nVersion: $version\n";
+	print "Usage:\n	$0 \n";
+	print "-i	<str>	input the blast (m=8) result file.";
+	print " eg: blast_m8.blastn\n";
+	print "-l	<str>	input the length file.";
+	print " eg: wgs_1.len\n";
+	print "-d	<str>	input the query file.";
+	print " eg: query.fa\n";
+	print "-o	<str>	input output files name.";
+	print " eg: wgs_1_exist.lis\n";
+	print "-r	<int>	length threshold=align_len/query_len.";
+	print " eg: -r 0.6; [$lenRatio]\n";
+	print "-t	<int>	input identity threshold\%.";
+	print " eg: -t 95; [$identity]\n";
+	print "-L	<int>	input the minimum hit length.";
+	print " eg: -t 80; [$min_len]\n";
+	print "-m	<int>	the allowable mismatch number.";
+	print " eg: -m 0. [$mismatch]\n";
+	print "-s	<int>	the allowable gap size.";
+	print " eg: -s 1. [$gap_size]\n";
+	print "-N	<int>	find the best hits or not (4: best).";
+	print " eg: -N 4. [$match_mode]\n";
+	print "-R	<int>	how to report repeat hits, 0=1st one; 1=random one; 2=all. [$Rone_All]\n";
+	print "-h	display this lines\n";
+#	print "		Note: please add quotation mark, if you input parameter in command line!\n";
+	print "\nExample:\n";
+	print "$0 -i blast_m8.blastn -d query.fa -r 1 -t 100 -L 10 -m 0 -N 4 -R 2.[all the perfect]\n";
+	print "$0 -i blast_m8.blastn -d query.fa -r 1 -t 100 -L 10 -m 0 -N 4 -R 0.[1st perfect]\n";
+	print "$0 -i blast_m8.blastn -d query.fa -r 1 -t 100 -L 10 -m 2 -N 4 -R 2.[all the best]\n";
+	print "$0 -i blast_m8.blastn -l wgs_1.len -r -1 -t 100 -L 10 -m 0 -R 2 -N 0 [all perfect long2short]\n";
+	print"\n============================================================\n\n";
+
+    exit(0);
+}
+############################################################################################################
+######################                  sub_format_datetime
+############################################################################################################
+
+sub sub_format_datetime #时间子程序
+{
+    my ($sec, $min, $hour, $day, $mon, $year, $wday, $yday, $isdst) = @_;
+    sprintf("%4d-%02d-%02d %02d:%02d:%02d", $year+1900, $mon+1, $day, $hour, $min, $sec);
+}
+
+############################################################################################################
+######################                  sub_end_program
+############################################################################################################
+sub sub_end_program
+{
+	print STDERR ("\n............................................................\n");
+	my $Time_End = sub_format_datetime(localtime(time()));
+	print STDERR "Running from [$Time_Start] to [$Time_End]\n";
+	$end = time();
+	printf STDERR ("Total execute time : %.2f s\n",$end-$start);
+	print STDERR ("==========================| $0  end  |==================================\n\n");
+	exit(0);
+
+}

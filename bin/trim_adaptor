@@ -1,0 +1,322 @@
+#!/usr/bin/perl
+# Copyright (c)  2018-
+# Program:			trim_adaptor
+# Author:			Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Program Date:		2018.02.06
+# Modifier:			Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Last Modified:	2018.02.17
+# Description:	remove adaptor from reads
+#**************************
+# Version: 1.0
+#**************************
+# e-mail:highlei@gmail.com
+
+my $version="1.0";
+print STDERR ("\n==========================| $0  start |=================================\n");
+
+my $start = time();
+my $Time_Start = sub_format_datetime(localtime(time()));
+print STDERR "Now = $Time_Start\n\n";
+
+
+use Getopt::Std;
+getopts("hi:I:o:a:l:m:s:k:B:");
+my $indir	= $opt_i;
+my $infile	= $opt_I;
+my $outdir	= (defined $opt_o) ? $opt_o : "./";
+my $adaptor	= (defined $opt_a) ? $opt_a : "TGGAATTCTCGGG";
+my $length	= (defined $opt_l) ? $opt_l : 9;
+my $min_len	= (defined $opt_m) ? $opt_m : 18;
+my $slide	= (defined $opt_s) ? $opt_s : -1; # -1 only check 1st 9 string;OR check other 9 string with slide -s nt
+my $keep	= (defined $opt_k) ? $opt_k : 0; # 0: discard the sequence without adaptor;1: keep the sequence without adaptor
+my $both	= (defined $opt_B) ? $opt_B : 0; # 0: remove 3' adaptor; 1 remove adaptors from both end of reads
+# $adaptor_3 = "TGGAATTCTCGGG";#"CACTCGGGCACCAAGGT";"CTGTAGGCACCATCAAT"; #"UCGUAUGCCGUCUUCUGCUUGidT";
+# $adaptor_3 = "CACTCGGGCACCAAGGT";#"CTGTAGGCACCATCAAT"; #"UCGUAUGCCGUCUUCUGCUUGidT";
+
+if ($opt_h || ($indir eq "" && $infile eq "")) {# || ($from eq "" xor $to eq "")){
+	usage();
+}
+use FileHandle;
+use strict;
+
+my ($i,$j,$k,$m,$n,$k1,$k2,$k3,$k4,$file,$line,$count,$flag,$block,$a,$b,$end);
+my (@buf,@tmp,@array,@adapt);
+my $in="";
+my $out="";
+my ($x1);
+my $adaptor_1st = substr($adaptor, 0, $length);
+
+#===========================================================================================================
+#====================                  main
+#===========================================================================================================
+if ($infile ne "") {
+	if ($slide==-1) {
+		print STDERR "adaptor: $adaptor\tfirst_$length: $adaptor_1st\n\n";
+#		opendir(FDIR, $indir) || die("Can not open dir: $indir\n");
+		$k1 = 0;	$k2 = 0;	$k3= 0;	$k4 = 0;
+	#	while ($file=readdir(FDIR)) {
+	#		if ($file!~/^\.+$/) {
+				@buf=split("/",$infile); $file=$buf[-1];
+				$in=$infile; 
+				@buf=split(/\./,$file); $buf[-1]="trim.". $buf[-1];
+				$j=join(".",@buf);$out=$outdir."/$j";
+				print STDERR "\t$in\t$out\n";
+				open(IN, $in) || die("Can not open file: $in\n");
+				open(OUT, ">$out") || die("Can not open file: $out\n");
+				$k1 = 0;	$k2 = 0;	$k3= 0;	$k4 = 0;
+				while (<IN>) {
+					$_=~s/[\s|\t|\r|\n]+$//g;
+					if ($_=~/^>/) {
+						$i = $_." trim_$length"."nt";	$k1++;next;
+					} 
+					if ($both==1) {
+						if ($_=~/$adaptor_1st\w{$min_len,}$adaptor_1st/) {
+							$m = index($_,$adaptor_1st,0);
+							$n = index($_,$adaptor_1st,$m+$min_len+$length);
+							$m = rindex($_,$adaptor_1st,$n-1);
+							if ($n-$m >= $min_len+$length) {
+								print OUT "$i\n",substr($_,$m+$length,$n-$m-$length),"\n";	$k2++;
+							} else {
+								$k3++;
+		#						print STDERR "err1:",$_;
+							}
+						} elsif ($_=~/$adaptor_1st\w+$adaptor_1st/) {
+							$k3++;
+			#				print STDERR "err1:",$_;
+						} else {
+							$k4++;
+						}
+					} elsif ($_=~/^(\w+)$adaptor_1st/) {
+						$m = index($_,$adaptor_1st,0);
+						if ($m >= $min_len) {
+							print OUT "$i\n",substr($_,0,$m),"\n";	$k2++;
+						} else {
+							$k3++;
+						}
+					} else {
+						$k4++;
+						if ($keep == 1) {
+							print OUT "$i\_no\n",$_,"\n";
+						}
+					}
+				}
+				close(OUT);
+				close(IN);
+				print STDERR "Total: $k1\t<$min_len: $k3\tno_adaptor: $k4\tGood: $k2\n\n";
+	#		}
+	#	}
+	#	closedir(FDIR);
+	} else {
+		$k3 = 0; $k2 = length($adaptor)-9;
+		for ($k1 = 0; $k1 <= $k2 ;$k1+=$slide) {
+			$adapt[$k3] = substr($adaptor, $k1, $length);
+			print STDERR "$k3 adaptor: $adaptor\t$k1\_$length: $adapt[$k3]\n"; $k3++;
+		}
+		print STDERR "\n";
+	#	my $adaptor_1st = substr($adaptor, 0, $length);
+	#	print STDERR "adaptor: $adaptor\tfirst_$length: $adaptor_1st\n\n";
+
+#		opendir(FDIR, $indir) || die("Can not open dir: $indir\n");
+		$k1 = 0;	$k2 = 0;	$k3= 0;	$k4 = 0;
+	#	while ($file=readdir(FDIR)) {
+	#		if ($file!~/^\.+$/) {
+				@buf=split("/",$infile); $file=$buf[-1];
+				$in=$infile; 
+				@buf=split(/\./,$file); $buf[-1]="trim.". $buf[-1];
+				$j=join(".",@buf);$out=$outdir."/$j";
+				print STDERR "\t$in\t$out\n";
+				open(IN, $in) || die("Can not open file: $in\n");
+				open(OUT, ">$out") || die("Can not open file: $out\n");
+				$k1 = 0;	$k2 = 0;	$k3= 0;	$k4 = 0;
+				while (<IN>) {
+					$_=~s/[\s|\t|\r|\n]+$//g;
+					if ($_=~/^>/) {
+						$i = $_." trim_$length"."nt";	$k1++;
+						next;
+					}
+					for ($x1 = 0; $x1 < @adapt ;$x1++) {
+						if ($_=~/^(\w+)$adapt[$x1]/) {
+							$m = index($_,$adapt[$x1],0);
+							if ($m >= $min_len) {
+								print OUT "$i\_$x1\_$adapt[$x1]\n",substr($_,0,$m),"\n";	$k2++;
+							} else {
+								$k3++;
+							}
+							last;
+						} 
+					}
+					if ($x1 == @adapt) {
+					#	print OUT "$i\n",$_,"\n";
+						if ($keep == 1) {
+							print OUT "$i\_no\n",$_,"\n";
+						}
+						$k4++;
+					}
+				}
+				close(OUT);
+				close(IN);
+				print STDERR "Total: $k1\t<$min_len: $k3\tno_adaptor: $k4\tGood: $k2\n\n";
+	#		}
+	#	}
+	#	closedir(FDIR);
+	}
+
+}
+if ($indir ne "") {
+
+if ($slide==-1) {
+	print STDERR "adaptor: $adaptor\tfirst_$length: $adaptor_1st\n\n";
+	opendir(FDIR, $indir) || die("Can not open dir: $indir\n");
+	$k1 = 0;	$k2 = 0;	$k3= 0;	$k4 = 0;
+	while ($file=readdir(FDIR)) {
+		if ($file!~/^\.+$/) {
+			$in=$indir."/$file"; 
+			@buf=split(/\./,$file); $buf[-1]="trim.". $buf[-1];
+			$j=join(".",@buf);$out=$outdir."/$j";
+			print STDERR "\t$in\t$out\n";
+			open(IN, $in) || die("Can not open file: $in\n");
+			open(OUT, ">$out") || die("Can not open file: $out\n");
+			$k1 = 0;	$k2 = 0;	$k3= 0;	$k4 = 0;
+			while (<IN>) {
+				$_=~s/[\s|\t|\r|\n]+$//g;
+				if ($_=~/^>/) {
+					$i = $_." trim_$length"."nt";	$k1++;
+				} elsif ($_=~/^(\w+)$adaptor_1st/) {
+					$m = index($_,$adaptor_1st,0);
+					if ($m >= $min_len) {
+						print OUT "$i\n",substr($_,0,$m),"\n";	$k2++;
+					} else {
+						$k3++;
+					}
+				} else {
+					$k4++;
+					if ($keep == 1) {
+						print OUT "$i\_no\n",$_,"\n";
+					}
+				}
+			}
+			close(OUT);
+			close(IN);
+			print STDERR "Total: $k1\t<$min_len: $k3\tno_adaptor: $k4\tGood: $k2\n\n";
+		}
+	}
+	closedir(FDIR);
+} else {
+	$k3 = 0; $k2 = length($adaptor)-9;
+	for ($k1 = 0; $k1 <= $k2 ;$k1+=$slide) {
+		$adapt[$k3] = substr($adaptor, $k1, $length);
+		print STDERR "$k3 adaptor: $adaptor\t$k1\_$length: $adapt[$k3]\n"; $k3++;
+	}
+	print STDERR "\n";
+#	my $adaptor_1st = substr($adaptor, 0, $length);
+#	print STDERR "adaptor: $adaptor\tfirst_$length: $adaptor_1st\n\n";
+
+	opendir(FDIR, $indir) || die("Can not open dir: $indir\n");
+	$k1 = 0;	$k2 = 0;	$k3= 0;	$k4 = 0;
+	while ($file=readdir(FDIR)) {
+		if ($file!~/^\.+$/) {
+			$in=$indir."/$file"; 
+			@buf=split(/\./,$file); $buf[-1]="trim.". $buf[-1];
+			$j=join(".",@buf);$out=$outdir."/$j";
+			print STDERR "\t$in\t$out\n";
+			open(IN, $in) || die("Can not open file: $in\n");
+			open(OUT, ">$out") || die("Can not open file: $out\n");
+			$k1 = 0;	$k2 = 0;	$k3= 0;	$k4 = 0;
+			while (<IN>) {
+				$_=~s/[\s|\t|\r|\n]+$//g;
+				if ($_=~/^>/) {
+					$i = $_." trim_$length"."nt";	$k1++;
+					next;
+				}
+				for ($x1 = 0; $x1 < @adapt ;$x1++) {
+					if ($_=~/^(\w+)$adapt[$x1]/) {
+						$m = index($_,$adapt[$x1],0);
+						if ($m >= $min_len) {
+							print OUT "$i\_$x1\_$adapt[$x1]\n",substr($_,0,$m),"\n";	$k2++;
+						} else {
+							$k3++;
+						}
+						last;
+					} 
+				}
+				if ($x1 == @adapt) {
+				#	print OUT "$i\n",$_,"\n";
+					if ($keep == 1) {
+						print OUT "$i\_no\n",$_,"\n";
+					}
+					$k4++;
+				}
+			}
+			close(OUT);
+			close(IN);
+			print STDERR "Total: $k1\t<$min_len: $k3\tno_adaptor: $k4\tGood: $k2\n\n";
+		}
+	}
+	closedir(FDIR);
+}
+}
+sub_end_program();
+
+
+#############################################################################################################
+####################################                                         ################################
+####################################              "main end"                 ################################
+####################################                                         ################################
+#############################################################################################################
+sub usage
+{
+	print "Program :\t$0\n";
+	print "Version :\t$version\n";
+	print "Author  :\tLei Gao, szu\n";
+	print "Contact :\tLei Gao <highlei\@hotmail.com>\n";
+	print "\nUsage:	$0 [options]\n";
+	print "\t-i	<str>	input dir include file(s).";
+	print " eg: before/\n";
+	print "\t-I	<str>	input filename.";
+	print " eg: smRNA.fasta\n";
+	print "\t-o	<str>	output dir include outfile.";
+	print " eg: after\n";
+	print "\t-a	<str>	input adaptor.";
+	print " [$adaptor]\n";
+	print "\t-l	<int>	the trim lenght of adaptor.";
+	print " [$length]\n";
+	print "\t-m	<int>	the minimum length for output.";
+	print " [$min_len]\n";
+	print "\t-s	<int>	-1 only check 1st 9 string;OR check other 9 string with slide -s nt.";
+	print " [$slide]\n";
+	print "\t-k	<int>	0: discard the sequence without adaptor;1: keep the sequence without adaptor.";
+	print " [$keep]\n";
+	print "\n\t-h	display this help\n";
+#	print "		Note: please add quotation mark, if you input parameter in command line!\n";
+	print "\nExample:\n";
+	print "$0 -i before/ -o after/ -a $adaptor -l $length -m $min_len\n";
+	print "$0 -I smallRNA.fasta -o after/ -a $adaptor -l $length -m $min_len\n";
+	print ("==========================| $0  end   |=================================\n\n");
+
+    exit(0);
+}
+############################################################################################################
+######################                  sub_format_datetime
+############################################################################################################
+
+sub sub_format_datetime #
+{
+    my ($sec, $min, $hour, $day, $mon, $year, $wday, $yday, $isdst) = @_;
+    sprintf("%4d-%02d-%02d %02d:%02d:%02d", $year+1900, $mon+1, $day, $hour, $min, $sec);
+}
+
+############################################################################################################
+######################                  sub_end_program
+############################################################################################################
+sub sub_end_program
+{
+	print STDERR ("\n............................................................\n");
+	my $Time_End = sub_format_datetime(localtime(time()));
+	print STDERR "Running from [$Time_Start] to [$Time_End]\n";
+	$end = time();
+	printf STDERR ("Total execute time : %.2f s\n",$end-$start);
+	print STDERR ("==========================| $0  end  |==================================\n\n");
+	exit(0);
+
+}
+

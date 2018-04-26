@@ -1,0 +1,370 @@
+#!/usr/bin/perl
+# Copyright (c)  2018--
+# Program:			searchseq
+# Author:			Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Program Date:		2018.02.12
+# Modifier:			Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Last Modified:	2018.02.22
+# Description:		extract seqs from database file according to filelist or name
+# **************************
+# Version: 1.0
+# **************************
+
+
+# e-mail:highlei@hotmail.com
+# ^-^
+
+my $version="v1.0";
+print STDERR ("\n==========================| $0 $version start |=================================\n");
+
+my $start = time();
+my $Time_Start = sub_format_datetime(localtime(time())); #运行开始时间
+print STDERR "Now = $Time_Start\n\n";
+
+
+use Getopt::Std;
+getopts("hi:s:l:f:r:t:c:n:d:g:m:S:");
+my $infile		= $opt_i;
+my $string		= $opt_s;
+my $filelist	= (defined $opt_l) ? $opt_l : "";
+my $fastalist	= (defined $opt_f) ? $opt_f : "";
+my $reversive	= (defined $opt_r) ? $opt_r : "";
+my $nameLen		= (defined $opt_t) ? $opt_t : 999999;
+my $col			= (defined $opt_c) ? $opt_c-1 : 0;	## the column
+my $sameName	= (defined $opt_n) ? $opt_n : 0;	# 0: no removing; 1: removing
+my $descript	= (defined $opt_d) ? $opt_d : 0;	# 0: use the $infile's; 1 use the fasta/list's
+my $geneID		= (defined $opt_g) ? $opt_g : "";	# search model ID (AT1G00010.1, AT1G00010.2, ...) in infile using gene ID (AT1G00010)
+my $gene_model	= (defined $opt_m) ? $opt_m : "";	# search gene ID (AT1G00010) in infile using gene_model ID (AT1G00010.1,...)
+my $suffix		= (defined $opt_S) ? $opt_S : "";   # e.g. "/1"
+if ($opt_h || $infile eq "" || ($string eq "" && $filelist eq "" && $fastalist eq "" && $gene_model eq "" && $geneID eq "")) {
+	usage();
+}
+use FileHandle;
+use strict;
+
+my $head = 100;
+my $tail = 100;
+
+my ($i,$j,$k,$m,$n,$k1,$k2,$k3,$k4,$file,$flag,$line,$key,$end);
+my (%gnm,%name);
+my $kk	= 0;
+my $skip	= "";
+my $i1 = "";
+
+#===========================================================================================================
+#====================                  main
+#===========================================================================================================
+
+if ($string ne "") {
+	if (exists($gnm{$string})) {
+		print STDERR "the string occupy many time!!\n";
+	} else {
+#		$string =~ s/(\W)/\\$1/g;
+		$gnm{$string.$suffix} = 1;	$kk++;
+	}
+}
+for ($k1 = 0;$k1 < $col ;$k1++) {
+	$skip	.= "\\S+\\s+";
+}
+print STDERR "skip=$skip\n";	$k4=0;
+if ($filelist ne "") {
+	$file = new FileHandle("$filelist") || die("Cannot open listfile $filelist!\n");
+	while (<$file>) {
+		$_ =~s/^[\s|\t]+//g;	#print STDERR $_,",";
+#		$_ =~s/[\s|\t|\r|\n]+$//g;
+		$_=~/^$skip(\S+)/;		#print STDERR $1,"\n";
+		if ($_=~/^$skip(\S+)\s+(.+)$/) {
+			$k1	= $1;	$k2	= $2;
+		} elsif ($_=~/^$skip(\S+)/) {
+			$k1	= $1;	$k2	= " ";
+		}
+		$k1.=$suffix;
+		if (exists($gnm{$k1})) {
+		#	print STDERR "the name:$_ occur many times!!\n"; 
+			$k4++;
+		} else {
+#			$_ =~ s/(\W)/\\$1/g;
+			$gnm{$k1} = $k2;	$kk++;
+		}
+	}
+	close $file || die;
+	print STDERR "\nLoad $filelist OK:$kk!\n";
+	if ($k4 > 0) {
+		print STDERR "$k4 queries occur more than once!\n";
+	}
+}
+$k4 = 0;
+if ($fastalist ne "") {
+	$file = new FileHandle("$fastalist") || die("Cannot open fastalist $fastalist!\n");
+	while (<$file>) {
+		$_ =~s/^[\s|\t]+//g;	#print STDERR $_,",";
+		if ($_=~/^>/) {
+					#print STDERR $1,"\n";
+			if ($_=~/^>$skip(\S+)\s+(.+)$/) {
+				$k1	= $1;	$k2	= $2;
+			} elsif ($_=~/^>$skip(\S+)/) {
+				$k1	= $1;	$k2	= " ";
+			}
+			if (exists($gnm{$k1})) {
+	#			print STDERR "the name:$_ occur many times!!\n";
+				$k4++;
+			} else {
+	#			$_ =~ s/(\W)/\\$1/g;
+				$gnm{$k1} = $k2;	$kk++;
+			}
+		}
+	}
+	close $file || die;
+	print STDERR "\nLoad $fastalist OK:$kk!\n";
+	if ($k4 > 0) {
+		print STDERR "$k4 queries occur more than once!\n\n";
+	}
+}
+$k4=0;
+if ($geneID ne "") {
+	$file = new FileHandle("$geneID") || die("Cannot open geneID file $geneID for gene model search!\n");
+	while (<$file>) {
+		$_ =~s/^[\s|\t]+//g;	#print STDERR $_,",";
+		$_ =~s/[\s|\t|\r|\n]+$//g;
+		$_=~/^$skip(\S+)/;		#print STDERR $1,"\n";
+		if ($_=~/^$skip(\S+)\s+(.+)$/) {
+			$k1	= $1;	$k2	= $2;
+		} elsif ($_=~/^$skip(\S+)/) {
+			$k1	= $1;	$k2	= " ";
+		} else {
+			next;
+		}
+#		print STDERR $k1,",";
+		if (exists($gnm{$k1})) {
+		#	print STDERR "the name:$_ occur many times!!\n"; 
+			$k4++;
+		} else {
+#			$_ =~ s/(\W)/\\$1/g;
+			$gnm{$k1} = $k2;	$kk++;
+		}
+	}
+	close $file || die;
+	print STDERR "\nLoad $geneID OK:$kk!\n";
+	if ($k4 > 0) {
+		print STDERR "$k4 queries occur more than once!\n";
+	}
+}
+$k4=0;
+if ($gene_model ne "") {
+	$file = new FileHandle("$gene_model") || die("Cannot open gene_model_ID file $gene_model for geneID search!\n");
+	while (<$file>) {
+		$_ =~s/^[\s|\t]+//g;	#print STDERR $_,",";
+#		$_ =~s/[\s|\t|\r|\n]+$//g;
+		$_=~/^$skip(\S+)/;		#print STDERR $1,"\n";
+		if ($_=~/^$skip(\w+)\.\d+\s+(.+)$/) {
+			$k1	= $1;	$k2	= $2;
+		} elsif ($_=~/^$skip(\w+)\.\d+/) {
+			$k1	= $1;	$k2	= " ";
+		}
+		if (exists($gnm{$k1})) {
+		#	print STDERR "the name:$_ occur many times!!\n"; 
+			$k4++;
+		} else {
+#			$_ =~ s/(\W)/\\$1/g;
+			$gnm{$k1} = $k2;	$kk++;
+		}
+	}
+	close $file || die;
+	print STDERR "\nLoad $gene_model OK:$kk!\n";
+	if ($k4 > 0) {
+		print STDERR "$k4 queries occur more than once!\n";
+	}
+}
+#exit(0);
+$m = 0;	$flag	= 0;
+$file = new FileHandle ("$infile") || die("Cannot open file $infile!");
+$i	= <$file>;
+while (!eof) {
+#for (; ;) {
+	if ($geneID ne "") {
+		$i	=~/>(\w+)\./; $i1 = $1; #print STDERR "$1;";
+	} else {
+		$i	=~/>(\S+)/; $i1 = $1;
+	}
+#	foreach $key (keys(%gnm)) {
+#		$key	= quotemeta($key);
+		if (exists($gnm{$i1}) && $reversive eq "") {
+			if ($sameName == 1 && exists($name{$i1})) {
+				while (<$file>) {
+					if ($_=~/^\>/) {
+						$flag	= 1;
+						$i	= $_;
+						last;
+					}
+				}
+				next;
+			} else {
+				$name{$i1}	= 1;
+			}
+			if (length($i) > $nameLen) {
+				print substr($i,0,$nameLen);
+			} else {
+				if ($descript != 0) {
+					if ($geneID ne "") {
+						$i	=~/>(\w+)\./; $i1 = $1;
+					} else {
+						$i	=~/>(\S+)\s/; $i1 = $1;
+					}
+					print ">$i1 ",$gnm{$i1},"\n";
+				} else {
+					print $i;
+				}
+			}
+			$m++;	$flag	= 2;
+			while (<$file>) {
+				if ($_=~/^\>/) {
+					$flag	= 1;
+					$i	= $_;
+					last;
+				}
+				print $_;
+			}
+		} elsif (exists($gnm{$i1})) {
+			$flag	= 2;
+			while (<$file>) {
+				if ($_=~/^\>/) {
+					$flag	= 1;
+					$i	= $_;
+					last;
+				}
+			}
+		}
+#	}
+	if ($flag	== 0 && $reversive ne "") {
+		if ($sameName == 1 && exists($name{$i1})) {
+				while (<$file>) {
+					if ($_=~/^\>/) {
+						$flag	= 1;
+						$i	= $_;
+						last;
+					}
+				}
+				next;
+		} else {
+				$name{$i1}	= 1;
+		}
+		if (length($i) > $nameLen) {
+				print substr($i,0,$nameLen);
+			} else {
+				if ($descript != 0) {
+				#	$i	=~/>(\S+)\s/;
+					if ($geneID ne "") {
+						$i	=~/>(\w+)\./; $i1 = $1;
+					} else {
+						$i	=~/>(\S+)\s/; $i1 = $1;
+					}
+					print ">$i1 ",$gnm{$i1},"\n";
+				} else {
+					print $i;
+				}
+			}
+		$m++;	$flag	= 2;
+		while (<$file>) {
+			if ($_=~/^\>/) {
+				$flag	= 1;
+				$i	= $_;
+				last;
+			}
+			print $_;
+		}
+		$m%1000000!=0 || print STDERR $m," ";
+	} elsif ($flag	== 0) {
+		while (<$file>) {
+			if ($_=~/^\>/) {
+				$i	= $_;
+				last;
+			}
+		}
+	} 
+	if ($flag	== 2) {
+		last;
+	} else {
+		$flag	= 0;
+	}
+}
+
+close $file || die("Wrong!");
+
+print STDERR "\n\nOutput $m sequences\n";
+
+sub_end_program();
+
+
+#############################################################################################################
+####################################                                         ################################
+####################################              "main end"                 ################################
+####################################                                         ################################
+#############################################################################################################
+
+
+sub usage
+{
+	print "Contact : Gao lei <highlei\@hotmail.com>";
+	print "\nProgram : $0\nVersion: $version\n";
+	print "Usage:\n	$0 \n";
+	print "-i	input database file\n";
+	print "			eg: syn.faa\n";
+	print "-s	input query sting\n";
+	print "			eg: ARGTK\n";
+	print "-l	input sequence name list file\n";
+	print "			eg: seqname.lis\n";
+	print "-f	input sequence name list file fasta format\n";
+	print "			eg: seqname.fasta\n";
+	print "-r	reverse the result!\n";
+	print "			eg: -r n; default: do not reverse\n";
+	print "-t	the maxmum length of annotation line (name line)!\n";
+	print "			eg: -t 1200; default: [999]\n";
+	print "-c	use the nth column in -l filelist\n";
+	print "			eg: -c 2; default: [1], ie the 1st column\n";
+	print "-n	removing the same name, output unique sequences.\n";
+	print "			eg: -n 1; default: [0]; 0: no removing; 1: removing\n";
+	print "-d	use the infile or fasta description.\n";
+	print "			eg: -d 1; default: [0]; 0: use $infile's; 1: use fasta's\n";
+	print "-m	search gene ID (AT1G00010) in infile using gene_model ID (AT1G00010.1).\n";
+	print "			eg: -G AT1G00010; default: []\n";
+	print "-g	search model ID (AT1G00010.1, AT1G00010.2, ...) in infile using gene ID (AT1G00010).\n";
+	print "			eg: -G AT1G00010; default: []\n";
+	print "-S	the name of fasta has a suffix with comparison to list.\n";
+	print "			eg: -S /1; default: []\n";
+	print "-h	display this lines\n";
+	print "\nExample:\n";
+	print "$0 -i syn.faa -s AHKJL -l seqname.lis -r n -t 999\n";
+	print "$0 -i syn.faa -l seqname.lis -c 2 -r n -t 999\n";
+	print "$0 -i geneID.fa(a) -m gene_model_ID.lis -c 2 -r n\n";
+	print "$0 -i gene_model.fa(a) -g geneID.lis -c 2 -r n\n";
+	print ("==========================| $0 $version end   |=================================\n\n");
+
+    exit(0);
+}
+############################################################################################################
+######################                  sub_format_datetime
+############################################################################################################
+
+sub sub_format_datetime #时间子程序
+{
+    my ($sec, $min, $hour, $day, $mon, $year, $wday, $yday, $isdst) = @_;
+    sprintf("%4d-%02d-%02d %02d:%02d:%02d", $year+1900, $mon+1, $day, $hour, $min, $sec);
+}
+
+############################################################################################################
+######################                  sub_end_program
+############################################################################################################
+
+sub sub_end_program
+{
+	print STDERR ("\n............................................................\n");
+	my $Time_End = sub_format_datetime(localtime(time()));
+	print STDERR "Running from [$Time_Start] to [$Time_End]\n";
+	$end = time();
+	printf STDERR ("Total execute time : %.2f s\n",$end-$start);
+	print STDERR ("==========================| $0 $version end  |==================================\n\n");
+	exit(0);
+
+}
+
+

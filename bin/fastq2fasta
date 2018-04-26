@@ -1,0 +1,221 @@
+#!/usr/bin/perl
+# Copyright (c)  2018--
+# Program:		fastaq2fasta
+# Author:		Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Program Date:		2018.02.01
+# Modifier:		Gao lei <highlei@hotmail.com or leigao@szu.edu.cn>
+# Last Modified:	2018.02.01
+# Description:		convert fastq to fasta
+# **************************
+# Version: 1.0
+# **************************
+# e-mail:highlei@hotmail.com
+# ^-^
+
+my $version="1.0";
+print STDERR ("\n============================================================\n");
+
+my $start = time();
+my $Time_Start = sub_format_datetime(localtime(time())); #运行开始时间
+print STDERR "Now = $Time_Start\n\n";
+
+
+use Getopt::Std;
+getopts("hi:F:q:c:p:f:g:o:");
+my $infile		= $opt_i;
+my $filter		= (defined $opt_F) ? $opt_F : 1;
+my $quality_ave	= (defined $opt_q) ? $opt_q : 20;
+#my $reversive	= (defined $opt_r) ? $opt_r : "";
+#my $nameLen		= (defined $opt_t) ? $opt_t : 999;
+#my $col			= (defined $opt_c) ? $opt_c-1 : 0;	## the column
+#my $sameName	= (defined $opt_n) ? $opt_n : 0;	# 0: no removing; 1: removing
+my $contiguous	= (defined $opt_c) ? $opt_c : 5;	# reads that contain a stretch of >= 20 contiguous values < 
+my $primer5		= (defined $opt_p) ? $opt_p : "AG";	# AG or CT
+my $format		= (defined $opt_f) ? $opt_f : 0;	# 0: the format from sra; 1 format from Illumina
+my $outFile		= (defined $opt_o) ? $opt_o : "";	# 0: the format from sra; 1 format from Illumina
+
+if ($opt_h || $infile eq "" ) {
+	usage();
+}
+use FileHandle;
+use strict;
+
+my $head = 100;
+my $tail = 100;
+
+my ($i,$j,$k,$m,$n,$k1,$k2,$k3,$k4,$file,$flag,$line,$key,$end);
+my (%gnm,%name);
+my (@buf,@value);
+my $kk	= length($primer5);
+my $skip	= "";
+
+
+#===========================================================================================================
+#====================                  main
+#===========================================================================================================
+if ($outFile ne "") {
+	open(STDOUT,">$outFile") || die("Can not open file: $outFile!!\n");
+}
+
+
+#if ($primer5 ne "") {
+#	@5p	= split(/\,/, $primer5);
+	print STDERR "primer5=$primer5 \n";
+#}
+$k3	= 0;	$k2	= 0;	$k4	= 0;	my	$k5	= 0;
+$file = new FileHandle("$infile") || die("Cannot open fastq file $infile!\n");
+if ($format	== 0) {
+	while (<$file>) {
+		$_ =~s/[\s|\r|\n]+$//g;	#print STDERR $_,",";
+		if ($_=~/^\@(\S+)\s+(.+)/) {
+			$i	= $1;	$j	= $2;	$k3++;
+			$k	= <$file>;
+			$k1	= <$file>;	$k1	= <$file>;
+			$k1 =~s/[\s|\r|\n]+$//g;
+			@buf=split(//,$k1);
+			$m	= 0;	$n	= 0;	$flag	= 0;
+			if ($filter == 1) {
+				for ($k2 = 0;$k2 < @buf ;$k2++) {
+					$value[$k2]	= ord($buf[$k2])-33;
+					$m	+= $value[$k2];
+					if ($value[$k2] >= $quality_ave) {
+						$n++;
+						if ($n >= $contiguous) {
+							$flag	= 1;
+						}
+					} else {
+						$n	= 0;
+					}
+				}
+				if (1.0*$m/$k2 >= $quality_ave && $flag == 1) {
+					print STDOUT ">$i $j @value\n$k";
+					$k4++;
+				}
+			} else {
+				print STDOUT ">$i $j\n$k";
+				$k4++;
+			}
+			splice(@buf,0);	splice(@value,0);
+		} elsif ($_=~/^\@(\S+)/) {
+			$i	= $1;	$k3++;
+			$k	= <$file>;
+			$k1	= <$file>;	$k1	= <$file>;
+			$k1 =~s/[\s|\r|\n]+$//g;
+			@buf=split(//,$k1);
+			$m	= 0;	$n	= 0;	$flag	= 0;
+			if ($filter == 1) {
+				for ($k2 = 0;$k2 < @buf ;$k2++) {
+					$value[$k2]	= ord($buf[$k2])-33;
+					$m	+= $value[$k2];
+					if ($value[$k2] >= $quality_ave) {
+						$n++;
+						if ($n >= $contiguous) {
+							$flag	= 1;
+						}
+					} else {
+						$n	= 0;
+					}
+				}
+				if (1.0*$m/$k2 >= $quality_ave && $flag == 1) {
+					print STDOUT ">$i @value\n$k";
+					$k4++;
+				}
+			} else {
+				print STDOUT ">$i\n$k";
+				$k4++;
+			}
+			splice(@buf,0);	splice(@value,0);
+		} else {
+			$k	= <$file>;	$k5++;
+			$k1	= <$file>;	$k1	= <$file>;
+		}
+
+	}
+} else {
+	while (<$file>) {
+		$k3++;
+		$_ =~s/[\s|\r|\n]+$//g;	#print STDERR $_,",";
+		if ($_=~/^\@(.+)\:Y$/) {
+			$i	= $1;	$k4++;
+			$k	= <$file>;
+			$k1	= <$file>;	$k1	= <$file>;
+			if ($primer5 ne "") {
+				$j	= substr($k,0,$kk);
+				if ($j	eq $primer5) {
+					print STDOUT ">$i\n",substr($k,$kk,);
+				}
+			} else {
+				print STDOUT ">$i\n",$k;
+			}
+		} else {
+			$k	= <$file>;	$k5++;
+			$k1	= <$file>;	$k1	= <$file>;
+		}
+
+	}
+}
+close $file || die;
+print STDERR "\nLoad $infile OK!\t$k3,$k4,$k5\n";
+
+if ($outFile ne "") {
+	close STDOUT || die;
+}
+
+sub_end_program();
+
+#############################################################################################################
+####################################                                         ################################
+####################################              "main end"                 ################################
+####################################                                         ################################
+#############################################################################################################
+
+
+sub usage
+{
+	print "Program :\t$0\n";
+	print "Version :\t$version\n";
+	print "Author  :\tLei Gao, szu\n";
+	print "Contact :\tLei Gao <highlei\@hotmail.com>\n";
+	print "\nUsage:	$0 [options]\n";
+	print "\t-i	<str>	fastq file.";
+	print " eg: rice.fastq\n";
+	print "\t-F	<int>	do filter (1) or not (0).";
+	print " [$filter]\n";
+	print "\t-q	<int>	the average quality value.";
+	print " [$quality_ave]\n";
+	print "\t-c	<int>	the stretch length with >=$quality_ave contiguous values.";
+	print " [$contiguous]\n";
+	print "\t-p	<str>	the 5'primer.";
+	print " [$primer5]\n";
+	print "\t-f	<int>	fastq format:	0: sra; 1: illumina quality (have Y/N at end).";
+	print " [$format]\n";
+	print "\n\t-h	display this help\n";
+	print "\nExample:\n";
+	print "$0 -i rice.fastq -F $filter -q $quality_ave\n";
+	print ("==========================| $0  end  |==================================\n\n");
+
+    exit(0);
+}
+############################################################################################################
+######################                  sub_format_datetime
+############################################################################################################
+
+sub sub_format_datetime #时间子程序
+{
+    my ($sec, $min, $hour, $day, $mon, $year, $wday, $yday, $isdst) = @_;
+    sprintf("%4d-%02d-%02d %02d:%02d:%02d", $year+1900, $mon+1, $day, $hour, $min, $sec);
+}
+
+############################################################################################################
+######################                  sub_end_program
+############################################################################################################
+sub sub_end_program
+{
+	print STDERR ("\n............................................................\n");
+	my $Time_End = sub_format_datetime(localtime(time()));
+	print STDERR "Running from [$Time_Start] to [$Time_End]\n";
+	$end = time();
+	printf STDERR ("Total execute time : %.2f s\n",$end-$start);
+	print STDERR ("==========================| $0  end  |==================================\n\n");
+	exit(0);
+}
