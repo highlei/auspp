@@ -113,7 +113,7 @@ if ($i eq "") {
 #	system("cp bin/auspp $dir/auspp.test");
 #}
 
-system("cp bin/auspp bin/blast_m8 bin/collapseFasta bin/fastq2fasta bin/searchseq bin/searchLineACList bin/soap2sam_gl bin/trim_adaptor $dir/.");
+system("cp bin/auspp bin/blast_m8 bin/collapseFasta bin/fastq2fasta bin/searchseq bin/searchLineACList bin/soap2sam_gl bin/trim_adaptor bin/auspp_lenDist.R bin/auspp_num.R $dir/.");
 
 sub_end_program();
 

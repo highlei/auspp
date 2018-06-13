@@ -18,7 +18,7 @@ my $start = time();
 my $Time_Start = sub_format_datetime(localtime(time())); 
 print STDERR "Now = $Time_Start\n\n";
 my $path=$0;
-my $myargv="@ARGV";
+
 
 use Getopt::Std;
 getopts("hi:I:o:l:x:P:D:S:L:R:p:s:d:E:a:A:r:Q:C:M:T:F:G:f:u:e:");
@@ -38,7 +38,7 @@ my $repdb	= (defined $opt_R) ? $opt_R : "";#"~/Ath/data/ath.repeats.fa";#
 my $prodir	= (defined $opt_p) ? $opt_p : ($path=~/^(.+\/)[^\/]+pl/? $1 : "./");#"~/pro"; # where all the scripts
 my $step	= (defined $opt_s) ? $opt_s : 0; # to do from step x to step y.
 my $newdir	= (defined $opt_d) ? $opt_d : "fasta,trim,filter,map2gnm"; #
-my $logfile	= (defined $opt_E) ? $opt_E : $prefix.".auspp.log"; # output the log file of perl scripts
+my $logfile	= (defined $opt_E) ? $opt_E : ""; # output the log file of perl scripts
 my $adaptor	= (defined $opt_a) ? $opt_a : "AGATCGGAAGA";#TGGAATTCTCGGG";
 my $adaptor2= (defined $opt_A) ? $opt_A : "AGATCGGAAGA";
 my $repRM	= (defined $opt_r) ? $opt_r : 0; # default: remove repeats and r/t/sn/snoRNA; 1: donot remove
@@ -55,12 +55,6 @@ my $example	= (defined $opt_e) ? $opt_e : "./";#where is the example/?(It locate
 # soap or bwa or bowtie or bowtie2 or tophat2, blast+(blastn), bam2wig #ssearch36 (fasta36)
 #smallRNA (= -s 2-6 -L 20-25;21;22;24;all);mRNA (= -s 36);ribo (= -s 236);chip (= -s 6); nucleosome (= -s 6)";
 my $op1st="";
-if ($path=~/^.+\/([^\/]+)$/) {
-	$op1st="Your input:\n\t$1 $myargv\n";
-} else {
-	$op1st="Your input:\n\t$path $myargv\n";
-}
-
 if ($soap eq "bwa") {
 	print STDERR "\nPlease make sure \"bwa aln\" or \"bwa mem\"?\n";
 	sub_end_program();
@@ -74,26 +68,24 @@ if ($mode=~/smallRNA/i) {
 	$step   =(defined $opt_s) ? $opt_s : "124567";
 	$soaplen=(defined $opt_L) ? $opt_L : "20-25;21;22;23;24;All";
 	$soap   =(defined $opt_P) ? $opt_P : "soap";
-	$adaptor	= (defined $opt_a) ? $opt_a : "TGGAATTCTCGGG";#TGGAATTCTCGGG";
 	$soapset	= (defined $opt_S) ? $opt_S : "-M 0 -r 2 -v 0"; 
-	if (-e "$example/reads/sRNA.fq.gz" && -e "$example/reference/tair10.2M.fa" && -e "$example/lib/ath.rRNAetc.fa") {
+	if (-e "$example/reads/sRNA.fq.gz" && -e "$example/reference/tair10.2M.fa" && -e "$example/lib/ath.RNA.fa") {
 		$infile	= "$example/reads/sRNA.fq.gz";
 		$genome = "$example/reference/tair10.2M.fa";
-		$repdb	= "$example/lib/ath.rRNAetc.fa";
+		$repdb	= "$example/lib/ath.RNA.fa";
 	} else {
 		print STDERR "\nPlease tell me where is the example/?(It locates in the directory of source code, e.g. yoursoft/auspp/example/)";
 		$example = <STDIN>;
-		if (-e "$example/reads/sRNA.fq.gz" && -e "$example/reference/tair10.2M.fa" && -e "$example/lib/ath.rRNAetc.fa") {
+		if (-e "$example/reads/sRNA.fq.gz" && -e "$example/reference/tair10.2M.fa" && -e "$example/lib/ath.RNA.fa") {
 			$infile	= "$example/reads/sRNA.fq.gz";
 			$genome = "$example/reference/tair10.2M.fa";
-			$repdb	= "$example/lib/ath.rRNAetc.fa";
+			$repdb	= "$example/lib/ath.RNA.fa";
 		} else {
 			print STDERR "I cann't find the example files in $example\n";
 			usage();
 		}
 	}
 	$prefix	= "test.sRNA";
-	$logfile	= (defined $opt_E) ? $opt_E : $prefix.".auspp.log";
 } elsif ($mode=~/RNA/i) {
 	$step   =(defined $opt_s) ? $opt_s : "1367";
 	$soaplen=(defined $opt_L) ? $opt_L : "All";
@@ -305,9 +297,9 @@ if ($rstep[6]!=0 && $soapdb eq "" && $genome ne "") {
 #	if (-W "$1") {
 #	} else {
 #		print STDERR "\nSince the directory of $genome isn't writable, the $genome file will be copy to the current directory!\n";
-		system("cp $genome .$2.$prefix.auspptmp.fa");
+		system("cp $genome .$2.auspptmp.fa");
 		$k4 = $genome;
-		$genome = ".".$2.".$prefix.auspptmp.fa";
+		$genome = ".".$2.".auspptmp.fa";
 #	}
 	$soapdb = $genome;
 	if ($soap =~/soap/) {
@@ -343,66 +335,36 @@ if ($ii == 1) {
 if ($jj == 1) {
 	system("rm $jnfile");
 }
-
-################## output the number #######################################
-open(INFOF, ">$prefix.auspp.info") || die("Can not open infofile: $prefix.auspp.info\n");
-#print INFOF "Info:\t$k\nSamples:\t$prefix\n";
-$i = "Samples\t$prefix\n";
+print STDERR "Info:\t$k\nSamples:\t$prefix\n";
 
 if ($rstep[1]!=0) {
-	$i .= "Total\t$rnum[0][1][0]\nQualityControl\t$rnum[0][1][1]\n";
+	print STDERR "Total\t$rnum[0][1][0]\nQualityControl\t$rnum[0][1][1]\n";
 } else {
-	$i .= "Total\t$rnum[0][1][0]\n";
+	print STDERR "Total\t$rnum[0][1][0]\n";
 }
 if ($rstep[2]!=0) {
-	$i .= "beforeTrim\t$rnum[0][2][0]\nafterTrim\t$rnum[0][2][1]\n";
+	print STDERR "beforeTrim\t$rnum[0][2][0]\nafterTrim\t$rnum[0][2][1]\n";
 }
 if ($rstep[3]!=0) {
-	$i .= "Collapse\t$rnum[0][3][1]\nunique\t$rnum[0][3][0]\n";
-	if ($rstep[4]!=0) {
-		$i .= "Filter\t$rnum[0][4][0]\nunique\t$rnum[0][4][1]\n";
-	}
-	if ($rstep[5]!=0) {
-		for ($k1=0; $k1 < @nlen ;$k1++) {
-			if ($nlen[$k1]=~/(\d+)/) {
-				$i .= "Length_$nlen[$k1]\t$rnum[0][5][$k1][0]\nunique\t$rnum[0][5][$k1][1]\n";
-			}
-		}
-	}
-	if ($rstep[6]!=0) {
-		for ($k1=0; $k1 < @nlen ;$k1++) {
-			if ($nlen[$k1]=~/(\w+)/) {
-				$i .= "Map_$nlen[$k1]\t$rnum[0][6][$k1][0]\nunique\t$rnum[0][6][$k1][1]\n";
-			}
-		}
-	}
-} else {
-	if ($rstep[4]!=0) {
-		$i .= "Filter\t$rnum[0][4][0]\n";
-	}
-	if ($rstep[5]!=0) {
-		for ($k1=0; $k1 < @nlen ;$k1++) {
-			if ($nlen[$k1]=~/(\d+)/) {
-				$i .= "Length_$nlen[$k1]\t$rnum[0][5][$k1][0]\n";
-			}
-		}
-	}
-	if ($rstep[6]!=0) {
-		for ($k1=0; $k1 < @nlen ;$k1++) {
-			if ($nlen[$k1]=~/(\w+)/) {
-				$i .= "Map_$nlen[$k1]\t$rnum[0][6][$k1][0]\n";
-			}
+	print STDERR "Collapse\t$rnum[0][3][1]\nunique\t$rnum[0][3][0]\n";
+}
+if ($rstep[4]!=0) {
+	print STDERR "Filter\t$rnum[0][4][0]\nunique\t$rnum[0][4][1]\n";
+}
+if ($rstep[5]!=0) {
+	for ($k1=0; $k1 < @nlen ;$k1++) {
+		if ($nlen[$k1]=~/(\d+)/) {
+			print STDERR "Length_$nlen[$k1]\t$rnum[0][5][$k1][0]\nunique\t$rnum[0][5][$k1][1]\n";
 		}
 	}
 }
-print INFOF $i;
-close(INFOF);
-$i=~s/\n/\;/g;
-$i=~s/[\t|\s]+/\,/g;
-$i=~s/\;$//;
-#print $i,"\n";
-$j.=readpipe("auspp_num.R \"$i\" $prefix");
-
+if ($rstep[6]!=0) {
+	for ($k1=0; $k1 < @nlen ;$k1++) {
+		if ($nlen[$k1]=~/(\w+)/) {
+			print STDERR "Map_$nlen[$k1]\t$rnum[0][6][$k1][0]\nunique\t$rnum[0][6][$k1][1]\n";
+		}
+	}
+}
 #for ($k1 = 0; $k1 < $k ;$k1++) {
 #	print STDERR $rnum[0][$k1],"\n";
 #}
@@ -422,13 +384,7 @@ if (@ndir > 1 && $cleanup == 0) {
 
 if ($logfile ne "") {
 	open(LOGF, ">$logfile") || die("Can not open logfile: $logfile\n");
-	print LOGF "\nLog: \n";
-#	if ($path=~/^.+\/([^\/]+)$/) {
-#		print LOGF "Your input:\n\t$1 $myargv\n";
-#	} else {
-		print LOGF "Your input:\n\t$path $myargv\n";
-#	}
-	print LOGF "$j\n";
+	print LOGF "\nLog: \n$j\n";
 	close(LOGF);
 }
 
@@ -573,8 +529,7 @@ sub sub_raw2align {
 # step 1: quality control
 	$rs = 1; print STDERR "\n"; #middleF=$middleF\n
 	if ($rstep[$rs] != 0) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Quality control\n";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Quality control\n";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Quality control\n";
 		$r1=readpipe("fastq2fasta -f 0 -p \"\" -F 1 $qc -i $rin -o $ndir[0]/$rfix.fasta 2>&1");
 		$rr.=$r1; $r1=~/OK\!\s(\d+),(\d+),(\d+)/;	$rnum[$nlib][$rs][0] = $1;$rnum[$nlib][$rs][1] = $2;
 		if ($rjn ne "") {
@@ -597,8 +552,7 @@ sub sub_raw2align {
 # step 2: trim adaptor
 	$rs=2; 
 	if ($rstep[$rs] != 0) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Trim adaptor\n";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Trim adaptor\n";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Trim adaptor\n";
 		$r1=readpipe("trim_adaptor $trimSet -a $adaptor -I $ndir[0]/$rfix.fasta -o $ndir[1]/ 2>&1");
 		$rr.=$r1; $r1=~/Total:\s(\d+).+Good:\s(\d+)/;	$rnum[$nlib][$rs][0] = $1;$rnum[$nlib][$rs][1] = $2;
 		if ($rjn ne "") {
@@ -623,8 +577,7 @@ sub sub_raw2align {
 # step 3: collapse Fasta
 	$rs=3; 
 	if ($rstep[$rs] != 0) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Collapse reads\n";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Collapse reads\n";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Collapse reads\n";
 		$r1=readpipe("collapseFasta -i $ndir[1]/$rfix.trim.fasta $copyFilter -0 0 -o $ndir[1]/$rfix.fa 2>&1");
 		$rr.=$r1; $r1=~/(\d+),(\d+)\sunique,sequence/;	$rnum[$nlib][$rs][0] = $1;$rnum[$nlib][$rs][1] = $2;
 		system("perl -e \'my \%a;my \$i=0;while(<>){if(\$_=~/^>\\S+_(\\d+)x/){\$j=\$1;} else {\$_=~s/[\\r|\\n|\\s]+\$//g;\$k=length(\$_);if(exists(\$a{\$k})){\$a{\$k}+=\$j} else{\$a{\$k}=\$j}} } \$m=0;print \"\\t$rfix\\n\"; foreach \$k (sort keys(\%a)) {\$m+=\$a{\$k};print \"\$k\\t\$a{\$k}\\n\"} print \"Total\\t\$m\\n\"\' $ndir[1]/$rfix.fa > $ndir[1]/$rfix.lenDist");
@@ -634,17 +587,16 @@ sub sub_raw2align {
 	} elsif ($r4 > $rs && $middleF == 1) {
 	} elsif (($r4 < $rs || !(-e "$ndir[1]/$rfix.fa")) && $rs < $r5) {
 	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Cluster reads\n";
-		$r1=readpipe("awk \'BEGIN{k=0}{if(\$_!~/^>/){print \">\" \$1 \"_\" k \"_1x\\n\" \$1;k+=1}}\' $ndir[1]/$rfix.trim.fasta > $ndir[1]/$rfix.fa");
+		$r1=readpipe("awk \'{if(\$_!~/^>/){print \">\" \$1 \"_1_1x\\n\" \$1}}\' $ndir[1]/$rfix.trim.fasta > $ndir[1]/$rfix.fa");
 		$rr.=$r1; #$r1=~/(\d+),(\d+)\sunique,sequence/;$rnum[$nlib][$r4++] = $2;
 		system("perl -e \'my \%a;my \$i=0;while(<>){if(\$_=~/^>\\S+/){\$j=1;} else {\$_=~s/[\\r|\\n|\\s]+\$//g;\$k=length(\$_);if(exists(\$a{\$k})){\$a{\$k}+=\$j} else{\$a{\$k}=\$j}} } \$m=0;print \"\\t$rfix\\n\"; foreach \$k (sort keys(\%a)) {\$m+=\$a{\$k};print \"\$k\\t\$a{\$k}\\n\"} print \"Total\\t\$m\\n\"\' $ndir[1]/$rfix.fa > $ndir[1]/$rfix.lenDist");
 		$r1=readpipe("perl -e \'my \%a;my \$i=0;while(<>){if(\$_=~/^>\\S+/){\$j=1;} else {\$_=~s/[\\r|\\n|\\s]+\$//g;\$k=length(\$_);if(exists(\$a{\$k})){\$a{\$k}+=\$j} else{\$a{\$k}=\$j}} } \$m=0;print \"Length\\tAfter_Trim\\n\"; foreach \$k (sort keys(\%a)) {\$m+=\$a{\$k};print \"\$k\\t\$a{\$k}\\n\"} \' $ndir[1]/$rfix.fa");
-		$lendist[$r11++]={split(/[\t|\n]/,$r1)};#print STDERR "\nr11=$r11,r1=$r1 end\n";
+		$lendist[$r11++]={split(/[\t|\n]/,$r1)};print STDERR "\nr11=$r11,r1=$r1 end\n";
 	}
 # step 4: remove repeats with local database
 	$rs=4; 
 	if ($rstep[$rs] != 0) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Filter reads by $repdb\n";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Filter reads by $repdb\n";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Filter reads similar to repeats or/and r/t/sn/snoRNAA or/and other\n";
 
 		system("blastn -db $repdb -query $ndir[1]/$rfix.fa -task \'blastn\' -num_alignments 1 -outfmt 6 -dust no -num_threads 3 -out $ndir[2]/$rfix.VS.filter.blastn");
 #blastn -db /home/lgao/Ath/data/ath.repeats.fa -query trim/col_r1.fa -num_alignments 1 -outfmt 6 -dust no -num_threads 3 -out tmp.t.blastn -task 'blastn'
@@ -680,8 +632,7 @@ sub sub_raw2align {
 # step 5: length of 20-25bp
 	$rs=5; 
 	if ($rstep[$rs] != 0) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running length select: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Running length select: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running length select: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -712,8 +663,7 @@ sub sub_raw2align {
 	if ($rstep[$rs] != 0) {
 
 	if ($soap =~/soap/) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running soap: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Running soap: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running soap: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -752,8 +702,7 @@ sub sub_raw2align {
 			$rr.=$r1;
 		}
 	} elsif ($soap=~/hisat2/) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running hisat2: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Running hisat2: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running hisat2: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -770,8 +719,7 @@ sub sub_raw2align {
 			}
 		}
 	} elsif ($soap=~/bowtie2/) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running bowtie2: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Running bowtie2: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running bowtie2: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -788,8 +736,7 @@ sub sub_raw2align {
 			}
 		}
 	} elsif ($soap=~/bowtie/) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running bowtie: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Running bowtie: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running bowtie: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -806,8 +753,7 @@ sub sub_raw2align {
 			}
 		}
 	} elsif ($soap=~/bwa\s+mem/) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running bwa mem: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Running bwa mem: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running bwa mem: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -830,8 +776,7 @@ sub sub_raw2align {
 			}
 		}
 	} elsif ($soap=~/bwa\s+aln/) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running bwa aln: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Running bwa aln: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running bwa aln: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -858,8 +803,7 @@ sub sub_raw2align {
 			}
 		}
 	} else { # tophat
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running tophat: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Running tophat: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Running tophat: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -892,8 +836,7 @@ sub sub_raw2align {
 	if ($rstep[$rs] != 0) {
 
 	if ($soap =~/soap/) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Converted to wiggle: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Converted to wiggle: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Converted to wiggle: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -930,8 +873,7 @@ sub sub_raw2align {
 			$rr.=$r1;
 		}
 	} elsif ($soap=~/tophat/) { # tophat
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Converted to wiggle: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Converted to wiggle: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Converted to wiggle: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -945,8 +887,7 @@ sub sub_raw2align {
 			}
 		}
 	} else { #elsif ($soap=~/hisat2/) {
-	#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Converted to wiggle: ";
-		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs: Converted to wiggle: ";
+		print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Converted to wiggle: ";
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
 				print STDERR "$1-$2;";
@@ -970,10 +911,10 @@ sub sub_raw2align {
 	}
 # step 8: info for output
 #	$rs=8; 
-	print STDERR "\n\n";
+	print STDERR "\t";
 	if ($rstep[$rs] != 0) {
 
-	print STDERR sub_format_datetime(localtime(time())),"\tGathering information and Generating picture";
+#	print STDERR sub_format_datetime(localtime(time())),"\tStep $rs in Lib $nlib, $rfix: Get the info: ";
 #	if ($rstep[1]==1) {
 #		$r1=readpipe("awk -F \"_\" \'BEGIN{k=0;j=0}{if(\$_~/^>/){gsub(\"x\",\"\",\$3);k+=\$3;j++}}END{print k,j}\' $ndir[2]/$rfix.filter.fa");
 #	#	print STDERR "r1=$r1,"; 
@@ -986,7 +927,7 @@ sub sub_raw2align {
 	if ($soap =~/soap/) {
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
-	#			print STDERR "$1-$2;";
+				print STDERR "$1-$2;";
 				$r3="$1-$2";
 			#	$r1=readpipe("awk -F \"_\" \'BEGIN{k=0;j=0}{if(\$_~/^>/){gsub(\"x\",\"\",\$3);k+=\$3;j++}}END{print k,j}\' $ndir[2]/$rfix.filter.$1-$2.fa");
 			#	$r1=~/(\d+)\s+(\d+)/;	$rnum[$nlib][$rs][$r2][0] = $1;$rnum[$nlib][$rs][$r2][1] = $2;$rnum[$nlib][$rs][$r2][3] = $nlen[$r2];
@@ -999,7 +940,7 @@ sub sub_raw2align {
 			#	$r1=~/(\d+)\s+(\d+)/;$rnum[$nlib][6][0] = $1;$rnum[$nlib][6][1] = $2; # length
 				$r1=~/(\d+)\s+(\d+)/;$rnum[$nlib][6][$r2][0] = $1;$rnum[$nlib][6][$r2][1] = $2;
 			} elsif ($nlen[$r2]=~/(\w+)/) {
-	#			print STDERR "$1;";
+				print STDERR "$1;";
 				$r3=$1;
 			#	$r1=readpipe("awk -F \"_\" \'BEGIN{k=0;j=0}{if(\$_~/^>/){gsub(\"x\",\"\",\$3);k+=\$3;j++}}END{print k,j}\' $ndir[2]/$rfix.filter.$r3.fa");
 			#	print STDERR "r1=$r1,"; 
@@ -1013,7 +954,7 @@ sub sub_raw2align {
 	} elsif ($soap =~/bowtie/) {
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
-	#			print STDERR "$1-$2;";
+				print STDERR "$1-$2;";
 				$r3="$1-$2";
 			#	$r1=readpipe("awk -F \"_\" \'BEGIN{k=0;j=0}{if(\$_~/^>/){gsub(\"x\",\"\",\$3);k+=\$3;j++}}END{print k,j}\' $ndir[2]/$rfix.filter.$r3.fa");
 			#	print STDERR "r1=$r1,"; 
@@ -1023,7 +964,7 @@ sub sub_raw2align {
 			#	$r1=~/(\d+)\s+(\d+)/;$rnum[$nlib][$r4++] = $1;$rnum[$nlib][$r4++] = $2; # length
 				$r1=~/(\d+)\s+(\d+)/;$rnum[$nlib][6][$r2][0] = $1;$rnum[$nlib][6][$r2][1] = $2;
 			} elsif ($nlen[$r2]=~/(\w+)/) {
-	#			print STDERR "$1;";
+				print STDERR "$1;";
 				$r3=$1;
 			#	$r1=readpipe("awk -F \"_\" \'BEGIN{k=0;j=0}{if(\$_~/^>/){gsub(\"x\",\"\",\$3);k+=\$3;j++}}END{print k,j}\' $ndir[2]/$rfix.filter.$r3.fa");
 			#	print STDERR "r1=$r1,"; 
@@ -1037,7 +978,7 @@ sub sub_raw2align {
 	} elsif ($soap =~/bwa/) {
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
-	#			print STDERR "$1-$2;";
+				print STDERR "$1-$2;";
 				$r3="$1-$2";
 			#	$r1=readpipe("awk -F \"_\" \'BEGIN{k=0;j=0}{if(\$_~/^>/){gsub(\"x\",\"\",\$3);k+=\$3;j++}}END{print k,j}\' $ndir[2]/$rfix.filter.$r3.fa");
 			#	print STDERR "r1=$r1,"; 
@@ -1047,7 +988,7 @@ sub sub_raw2align {
 			#	$r1=~/(\d+)\s+(\d+)/;$rnum[$nlib][$r4++] = $1;$rnum[$nlib][$r4++] = $2; # length
 				$r1=~/(\d+)\s+(\d+)/;$rnum[$nlib][6][$r2][0] = $1;$rnum[$nlib][6][$r2][1] = $2;
 			} elsif ($nlen[$r2]=~/(\w+)/) {
-	#			print STDERR "$1;";
+				print STDERR "$1;";
 				$r3=$1;
 			#	$r1=readpipe("awk -F \"_\" \'BEGIN{k=0;j=0}{if(\$_~/^>/){gsub(\"x\",\"\",\$3);k+=\$3;j++}}END{print k,j}\' $ndir[2]/$rfix.filter.$r3.fa");
 			#	print STDERR "r1=$r1,"; 
@@ -1064,7 +1005,7 @@ sub sub_raw2align {
 	} else { # tophat
 		for ($r2 = 0; $r2 < @nlen ;$r2++) {
 			if ($nlen[$r2]=~/(\d+)\D+(\d+)/) {
-	#			print STDERR "$1-$2;";
+				print STDERR "$1-$2;";
 				$r3="$1-$2";
 			#	$r1=readpipe("awk -F \"_\" \'BEGIN{k=0;j=0}{if(\$_~/^>/){gsub(\"x\",\"\",\$3);k+=\$3;j++}}END{print k,j}\' $ndir[2]/$rfix.filter.$r3.fa");
 			#	print STDERR "r1=$r1,"; 
@@ -1074,7 +1015,7 @@ sub sub_raw2align {
 			#	$r1=~/(\d+)\s+(\d+)/;$rnum[$nlib][$r4++] = $1;$rnum[$nlib][$r4++] = $2; # length
 				$r1=~/(\d+)\s+(\d+)/;$rnum[$nlib][6][$r2][0] = $1;$rnum[$nlib][6][$r2][1] = $2;
 			} elsif ($nlen[$r2]=~/(\w+)/) {
-	#			print STDERR "$1;";
+				print STDERR "$1;";
 				$r3=$1;
 			#	$r1=readpipe("awk -F \"_\" \'BEGIN{k=0;j=0}{if(\$_~/^>/){gsub(\"x\",\"\",\$3);k+=\$3;j++}}END{print k,j}\' $ndir[2]/$rfix.filter.$r3.fa");
 			#	print STDERR "r1=$r1,"; 
@@ -1089,38 +1030,20 @@ sub sub_raw2align {
 	
 	}
 	################################ draw length distribution ###################################
-	if ($rstep[2] != 0) {
-		@drawlen = sort keys %{$lendist[0]};#print "\n====drawlen====\n";print " ",@drawlen; print "\n====drawlen====\n";
-		$rs = "Length";
-			for ($r21 = 0; $r21 < $r11 ;$r21++) {
-				if (exists($lendist[$r21]{$drawlen[-1]})) {
-					$rs .= "\t$lendist[$r21]{$drawlen[-1]}";
-				} else {
-					$rs .= "\t0";
-				}
+	@drawlen = sort {$a<=>$b} keys %{$lendist[0]};print "\n====drawlen====\n";print " ",@drawlen; print "\n====drawlen====\n";
+	$rs = "";
+	for ($r1 = $drawlen[0]; $r1 <= $drawlen[-1] ;$r1++) {
+		$rs .= "$r1";
+		for ($r21 = 0; $r21 < $r11 ;$r21++) {
+			if (exists($lendist[$r21]{$r1})) {
+				$rs .= "\t$lendist[$r21]{$r1}";
+			} else {
+				$rs .= "\t0";
 			}
-			$rs .= "\n";
-		for ($r1 = $drawlen[0]; $r1 <= $drawlen[-2] ;$r1++) {
-			$rs .= "$r1";
-			for ($r21 = 0; $r21 < $r11 ;$r21++) {
-				if (exists($lendist[$r21]{$r1})) {
-					$rs .= "\t$lendist[$r21]{$r1}";
-				} else {
-					$rs .= "\t0";
-				}
-			}
-			$rs .= "\n";
 		}
-		open(LENDIS, ">$rfix.auspp.lenDist") || die("Can not open lenDist file: $rfix.auspp.lenDist\n");
-		print LENDIS $rs;
-		close(LENDIS);
-		$rs=~s/\n/\;/g;
-		$rs=~s/[\t|\s]+/\,/g;
-		$rs=~s/\;$//;
-		#print $rs,"\n";
-		$r1=readpipe("auspp_lenDist.R \"$rs\" $rfix");
+		$rs .= "\n";
 	}
-	#print "\n====rs====\n$rs\n====rs====\n";
+	print "\n====rs====\n$rs\n====rs====\n";
 	################################ delete the middle file   ###################################
 	for ($rs = $r4; $rs <= $r5 ;$rs++) { # delete the middle file from copying directly
 		if ($rstep[$rs] == 0 && $rs == 1) {
@@ -1138,8 +1061,7 @@ sub sub_raw2align {
 		}
 	}
 	print STDERR "\n";
-#	print STDERR sub_format_datetime(localtime(time())),"\tLib $nlib, $rfix finished!\n";
-#	print STDERR sub_format_datetime(localtime(time())),"\t$rfix finished!\n";
+	print STDERR sub_format_datetime(localtime(time())),"\tLib $nlib, $rfix finished!\n";
 	return $r4,$rr;
 }
 
